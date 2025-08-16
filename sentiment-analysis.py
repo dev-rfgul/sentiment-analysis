@@ -1,6 +1,7 @@
 from transformers import pipeline
 import pandas as pd
 import gradio as gr
+import matplotlib.pyplot as plt
 
 # Load Hugging Face sentiment model
 analyzer = pipeline(
@@ -27,7 +28,8 @@ def process_reviews(input_text, input_file):
         reviews.extend(df.iloc[:, 0].dropna().astype(str).tolist())  # ensure strings
 
     if not reviews:
-        return pd.DataFrame([{"Review": "No input provided", "Sentiment": "N/A"}])
+        df_out = pd.DataFrame([{"Review": "No input provided", "Sentiment": "N/A"}])
+        return df_out, None
 
     # Analyze reviews safely
     results = []
@@ -45,7 +47,24 @@ def process_reviews(input_text, input_file):
     df_out = pd.DataFrame(results)
     df_out.to_excel("review_sentiments.xlsx", index=False)
 
-    return df_out
+    # --- Create Pie Chart ---
+    sentiment_counts = df_out["Sentiment"].value_counts()
+    plt.figure(figsize=(5, 5))
+    plt.pie(
+        sentiment_counts,
+        labels=sentiment_counts.index,
+        autopct='%1.1f%%',
+        startangle=90,
+        wedgeprops={'edgecolor': 'white'}
+    )
+    plt.title("Sentiment Distribution")
+    plt.tight_layout()
+    pie_chart_path = "sentiment_pie.png"
+    plt.savefig(pie_chart_path)
+    plt.close()
+
+    return df_out, pie_chart_path
+
 
 # ---- Gradio UI ----
 demo = gr.Interface(
@@ -54,7 +73,10 @@ demo = gr.Interface(
         gr.Textbox(lines=5, placeholder="Paste reviews here (separated by newlines or periods)...", label="Text Reviews"),
         gr.File(file_types=[".xlsx"], type="filepath", label="Upload Excel File")
     ],
-    outputs=gr.Dataframe(label="Sentiment Results"),
+    outputs=[
+        gr.Dataframe(label="Sentiment Results"),
+        gr.Image(type="filepath", label="Sentiment Pie Chart")
+    ],
     title="Sentiment Analysis for Reviews",
     description="Upload an Excel file with reviews (first column) or paste text reviews. Results will also be saved to 'review_sentiments.xlsx'."
 )
